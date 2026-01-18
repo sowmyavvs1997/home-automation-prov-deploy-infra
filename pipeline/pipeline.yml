@@ -1,0 +1,92 @@
+
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Home Automation Bootstrap + CI/CD (Single File)
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues: [dev, sit, prod]
+
+  RepoName:
+    Type: String
+    Description: CodeCommit repository name
+
+Resources:
+
+  TerraformStateBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "tf-state-${Environment}-${AWS::AccountId}"
+      VersioningConfiguration: { Status: Enabled }
+
+  PipelineArtifactsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "pipeline-artifacts-${Environment}-${AWS::AccountId}"
+      VersioningConfiguration: { Status: Enabled }
+
+  TerraformLockTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: LockID
+          AttributeType: S
+      KeySchema:
+        - AttributeName: LockID
+          KeyType: HASH
+      TableName: !Sub "tf-lock-${Environment}"
+
+  AppECR:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Sub "home-automation-${Environment}"
+
+  CodeBuildRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codebuild.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AdministratorAccess
+
+  CodeBuildProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: !Sub "home-automation-build-${Environment}"
+      ServiceRole: !GetAtt CodeBuildRole.Arn
+      Artifacts: { Type: CODEPIPELINE }
+      Environment:
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/standard:7.0
+        Type: LINUX_CONTAINER
+        PrivilegedMode: true
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: |
+          version: 0.2
+          phases:
+            pre_build:
+              commands:
+                - aws ecr get-login-password | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
+            build:
+              commands:
+                - docker build -t backend .
+                - docker tag backend:latest $ECR_REPO:latest
+            post_build:
+              commands:
+                - docker push $ECR_REPO:latest
+                - printf '[{"name":"backend","imageUri":"%s"}]' $ECR_REPO:latest > imagedefinitions.json
+          artifacts:
+            files:
+              - imagedefinitions.json
+
+Outputs:
+  ECRRepo:
+    Value: !Ref AppECR
