@@ -1,0 +1,339 @@
+
+AWSTemplateFormatVersion: "2010-09-09"
+Description: HAB-Home Automation Backend, Provision & Deploy Infrastructure Pipeline
+
+Parameters:
+  ServiceName:
+    Type: String
+    Default: home-automation-backend-svc
+    Description: Pipeline service to provision and deploy Home Automation app backend
+  ECRImageRepository:
+    Type: String
+    Default: 'home-automation-backend-ecr'
+    Description: ECR repository for images
+  RepositoryName:
+    Type: String
+    Default: 'home-automation-prov-deploy-infra-amp'
+    Description: CodeCommit repository name for the application code
+  TerraformStateBucket:
+    Type: String
+    Default: 'HAB-tf-state-${Environment}-${AWS::AccountId}'
+    Description: S3 bucket name for Terraform state files
+  BranchName:
+    Type: String
+    Default: main
+    Description: Branch name for the CodeCommit repository
+  ImageTag:
+    Type: String
+    Default: latest
+    Description: Docker image tag for the application
+  TerraformVersion:
+    Type: String
+    Default: '1.14.3'
+    Description: Version of Terraform to use
+  TerraformSha256:
+    Type: String
+    Default: '01e1698d2563cf4780438468f9f815eedf707e8ea01f87bb7621e24a00e21d12'
+    Description: SHA256 checksum for the Terraform binary
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues: [dev, sit, prod]
+
+Resources:
+  TerraformStateBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref TerraformStateBucket
+      VersioningConfiguration: { Status: Enabled }
+
+  BuildArtifactsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "HAB-artifacts-${Environment}-${AWS::AccountId}"
+      VersioningConfiguration: { Status: Enabled }
+
+  TerraformLockTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: LockID
+          AttributeType: S
+      KeySchema:
+        - AttributeName: LockID
+          KeyType: HASH
+      TableName: !Sub "tf-lock-HAB-${Environment}"
+  EC2InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: 
+                - ec2.amazonaws.com
+                - ecs.amazonaws.com
+            Action: sts:AssumeRole
+      Path: /
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
+        - arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess
+
+      RoleName: !Sub "HAB-EC2InstanceRole-${Environment}"
+      PermissionsBoundary: arn:aws:iam::aws:policy/AdministratorAccess
+
+  Ec2InstanceRolePolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: Policy for EC2 Instance Role to access S3 and ECR 
+      Path: /
+      ManagedPolicyName: !Sub "HAB-EC2InstanceRolePolicy-${Environment}"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action:
+              - s3:*
+              - ecr:*
+              - ecs:*
+              - cloudformation:*
+              - autoscaling:*
+              - iam:PassRole
+              - iam:createRole
+              - iam:ListInstanceProfiles
+              - iam:AddRoleToInstanceProfile
+              - iam:CreateInstanceProfile
+              - cloudwatch:*
+              - elasticloadbalancing:*
+              - elasticCache:*
+              - elasticBeanstalk:*
+              - ec2:*
+            Resource: "*"
+
+  EC2InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: "/"
+      Roles:
+        - !Ref EC2InstanceRole
+      InstanceProfileName: !Sub "HAB-EC2InstanceProfile-${Environment}"
+
+  ECSRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: 
+                - ecs.amazonaws.com
+                - ecs-tasks.amazonaws.com
+                - ec2.amazonaws.com
+                - ssm.amazonaws.com
+                - codebuild.amazonaws.com
+                - cloudformation.amazonaws.com
+                - config.amazonaws.com
+      Path: /
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonEC2ContainerServiceFullAccess
+        - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryFullAccess
+        - arn:aws:iam::aws:policy/AmazonS3FullAccess
+        - arn:aws:iam::aws:policy/CloudWatchFullAccess
+        - arn:aws:iam::aws:policy/AmazonSSMFullAccess
+      RoleName: !Sub "HAB-ECSRole-${Environment}"
+      PermissionsBoundary: arn:aws:iam::aws:policy/AdministratorAccess
+      
+  ECSAccessPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: Policy for ECS Role to access ECR and S3
+      Path: "/"
+      ManagedPolicyName: !Sub "HAB-ECSRolePolicy-${Environment}"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Resource:
+              - '*'
+            Action:
+              - 'ssm:PutParameter'
+              - 'ssm:GetParameterByPath'
+            Resource: "*"
+          - Effect: Allow
+            Action:
+              - cloudformation:ListExports
+            Resource: "*"
+          - Effect: Allow
+            Action:
+              - ecs:*
+              - ecr:*
+              - s3:*
+              - elasticfilesystem:*
+              - ec2:*
+              - elasticloadbalancing:*
+              - iam:PassRole
+              - iam:CreateRole
+              - autoscaling:*
+              - servicediscovery:*
+              - iam:*
+              - cloudwatch:*
+              - route53:createHostedZone
+              - route53:deleteHostedZone
+              - cloudformation:*
+              - kms:*
+              - iam:UpdateAssumeRolePolicy
+              - logs:*
+            Resource: "*"
+          - Effect: Allow
+            Action:
+              - s3:PutObject
+              - s3:GetObject
+              - s3:GetObjectVersion
+            Resource: 
+              - !Sub "arn:aws:s3:::${BuildArtifactsBucket}/*"
+          -Effect: Allow
+            Action:
+              - ecr:GetAuthorizationToken
+              - ecr:BatchCheckLayerAvailability
+              - ecr:CompleteLayerUpload
+              - ecr:InitiateLayerUpload
+              - ecr:PutImage
+              - ecr:UploadLayerPart
+            Resource: !Sub "arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/${ECRImageRepository}"
+
+  CodeBuildRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codebuild.amazonaws.com
+            Action: sts:AssumeRole
+      Path: /
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AdministratorAccess
+
+  CodeBuildProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: !Sub "home-automation-build-${Environment}"
+      ServiceRole: !GetAtt CodeBuildRole.Arn
+      Artifacts: { Type: CODEPIPELINE }
+      Environment:
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/standard:7.0
+        Type: LINUX_CONTAINER
+        PrivilegedMode: true
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: |
+          version: 0.2
+          phases:
+            pre_build:
+              commands:
+                - aws ecr get-login-password | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
+            build:
+              commands:
+                - docker build -t backend .
+                - docker tag backend:latest $ECR_REPO:latest
+            post_build:
+              commands:
+                - docker push $ECR_REPO:latest
+                - printf '[{"name":"backend","imageUri":"%s"}]' $ECR_REPO:latest > imagedefinitions.json
+          artifacts:
+            files:
+              - imagedefinitions.json
+
+  ProvisionAndDeployProject:
+    DependsOn: CloudFormationExecutionRole
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: !Sub '${AWS::StackName}-InvokeTerraformBuild-${Environment}'
+      ServiceRole: !GetAtt [ECSRole, Arn]
+      Artifacts: { Type: CODEPIPELINE }
+      Environment:
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/eb-go-1.5-amazonlinux-64:2.9.1
+        Type: LINUX_CONTAINER
+        PrivilegedMode: true
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: !Sub |        
+          version: 0.2
+          phases:
+            build:
+              commands:
+                - echo "Building infrastructure..."
+                - yum install -y jq dos2unix
+                - cd /tmp && curl -o terraform.zip https://releases.hashicorp.com/terraform/${TerraformVersion}/terraform_${TerraformVersion}_linux_amd64.zip && echo "${TerraformSha256}  terraform.zip" | sha256sum -c --quiet && unzip terraform.zip && mv terraform /usr/bin/ && rm terraform.zip
+            post_build:
+              commands:
+                - cd ..; curl 169.254.170.2$AWS_CONTAINER_CREDENTIALS_RELATIVE_URI | jq 'to_entries | [ .[] | select(.key | (contains("Expiration") or contains("RoleArn") | not)) ] | map(if .key == "AccessKeyId" then . + {"key":"AWS_ACCESS_KEY_ID"} else . end) | map(if .key == "SecretAccessKey" then . + {"key":"AWS_SECRET_ACCESS_KEY"} else . end) | map(if .key == "Token" then . + {"key":"AWS_SESSION_TOKEN"} else . end) | map("export \(.key)=\(.value)") | .[]' -r > /tmp/aws_cred_export.txt
+                - pwd;ls -ltr;source /tmp/aws_cred_export.txt
+                - which dos2unix
+                - cd dev/; pwd; ls -ltr; dos2unix deploy_infra.sh; chmod +x run.sh; source /tmp/aws_cred_export.txt; bash -x run.sh
+                - pwd
+                - exit
+            artifacts:
+              files:
+                - 'pipeline/*'
+      TimeoutInMinutes: 10
+  Pipeline:
+    Type: AWS::CodePipeline::Pipeline
+    Properties:
+      RoleArn: !GetAtt [PipelineExecutionRole, Arn]
+      ArtifactStore:
+        Type: S3
+        Location: !Ref BuildArtifactsBucket
+      Stages:
+        - Name: Source
+          Actions:
+            - Name: Source
+              ActionTypeId:
+                Category: Source
+                Owner: AWS
+                Provider: CodeCommit
+                Version: 1
+              OutputArtifacts:
+                - Name: SourceOutput
+              Configuration:
+                RepositoryName: !Ref RepositoryName
+                BranchName: !Ref BranchName
+              RunOrder: 1
+        - Name: Build
+          Actions:
+            - Name: Build
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: 1
+              InputArtifacts:
+                - Name: SourceOutput
+              OutputArtifacts:
+                - Name: BuildOutput
+              Configuration:
+                ProjectName: !Ref CodeBuildProject
+              RunOrder: 1
+        - Name: Deploy
+          Actions:
+            - Name: DeployInfrastructure
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: 1
+              InputArtifacts:
+                - Name: BuildOutput
+              Configuration:
+                ProjectName: !Ref ProvisionAndDeployProject
+              RunOrder: 1
+
+Outputs:
+  ECRRepo:
+    Value: !Ref AppECR
