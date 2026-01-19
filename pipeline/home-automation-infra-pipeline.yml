@@ -1,4 +1,3 @@
-
 AWSTemplateFormatVersion: "2010-09-09"
 Description: HAB-Home Automation Backend, Provision & Deploy Infrastructure Pipeline
 
@@ -41,7 +40,7 @@ Parameters:
     AllowedValues: [dev, sit, prod]
 
 Resources:
-  TerraformStateBucket:
+  TFStateBucket:
     Type: AWS::S3::Bucket
     Properties:
       BucketName: !Ref TerraformStateBucket
@@ -194,7 +193,7 @@ Resources:
               - s3:GetObjectVersion
             Resource: 
               - !Sub "arn:aws:s3:::${BuildArtifactsBucket}/*"
-          -Effect: Allow
+          - Effect: Allow
             Action:
               - ecr:GetAuthorizationToken
               - ecr:BatchCheckLayerAvailability
@@ -204,7 +203,7 @@ Resources:
               - ecr:UploadLayerPart
             Resource: !Sub "arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/${ECRImageRepository}"
 
-  CodeBuildRole:
+  CodeBuildServiceRole:
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
@@ -216,38 +215,108 @@ Resources:
             Action: sts:AssumeRole
       Path: /
       ManagedPolicyArns:
+        - !Ref CodeBuildAccessPolicy
         - arn:aws:iam::aws:policy/AdministratorAccess
+      RoleName: !Sub '${ServiceName}-CodeBuildRole-${Environment}'
+      PermissionsBoundary: arn:aws:iam::aws:policy/AdministratorAccess
 
-  CodeBuildProject:
-    Type: AWS::CodeBuild::Project
+  CodeBuildAccessPolicy:
+    Type: AWS::IAM::ManagedPolicy
     Properties:
-      Name: !Sub "home-automation-build-${Environment}"
-      ServiceRole: !GetAtt CodeBuildRole.Arn
-      Artifacts: { Type: CODEPIPELINE }
-      Environment:
-        ComputeType: BUILD_GENERAL1_SMALL
-        Image: aws/codebuild/standard:7.0
-        Type: LINUX_CONTAINER
-        PrivilegedMode: true
-      Source:
-        Type: CODEPIPELINE
-        BuildSpec: |
-          version: 0.2
-          phases:
-            pre_build:
-              commands:
-                - aws ecr get-login-password | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
-            build:
-              commands:
-                - docker build -t backend .
-                - docker tag backend:latest $ECR_REPO:latest
-            post_build:
-              commands:
-                - docker push $ECR_REPO:latest
-                - printf '[{"name":"backend","imageUri":"%s"}]' $ECR_REPO:latest > imagedefinitions.json
-          artifacts:
-            files:
-              - imagedefinitions.json
+      Description: Policy for CodeBuild to access ECR and S3
+      Path: "/"
+      ManagedPolicyName: !Sub "HAB-CodeBuildRolePolicy-${Environment}"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action:
+              - ecr:GetAuthorizationToken
+              - ecr:BatchCheckLayerAvailability
+              - ecr:CompleteLayerUpload
+              - ecr:InitiateLayerUpload
+              - ecr:PutImage
+              - ecr:UploadLayerPart
+            Resource: !Sub "arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/${ECRImageRepository}"
+          - Effect: Allow
+            Action:
+              - s3:GetObject
+              - s3:GetObjectVersion
+            Resource:
+              - !Sub "arn:aws:s3:::${BuildArtifactsBucket}/*"
+
+  CloudFormationExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:   
+          - Effect: Allow
+            Principal:
+              Service: cloudformation.amazonaws.com
+            Action: sts:AssumeRole
+        Path: /
+      ManagedPolicyArns:
+        - !Ref CFNPipelineExecutionPolicy
+        - arn:aws:iam::aws:policy/AdministratorAccess
+      RoleName: !Sub '${ServiceName}-CloudFormationExecutionRole-${Environment}'
+      PermissionsBoundary: arn:aws:iam::aws:policy/AdministratorAccess
+
+  CFNPipelineExecutionPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: Policy for CloudFormation Pipeline Execution Role
+      Path: "/"
+      ManagedPolicyName: !Sub "HAB-CloudFormationExecutionPolicy-${Environment}"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action:
+              - cloudformation:*
+            Resource: "*"
+
+  PipelineExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"     
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codepipeline.amazonaws.com
+            Action: sts:AssumeRole
+      Path: /
+      ManagedPolicyArns:
+        - !Ref CFNPipelineExecutionPolicy
+        - !Ref CodePipelineAccessPolicy
+        - arn:aws:iam::aws:policy/AdministratorAccess
+      RoleName: !Sub '${ServiceName}-PipelineExecutionRole-${Environment}'
+      PermissionsBoundary: arn:aws:iam::aws:policy/AdministratorAccess
+
+  CodePipelineAccessPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: Policy for CloudFormation Pipeline Access Role
+      Path: "/"
+      ManagedPolicyName: !Sub "HAB-CloudFormationPipelineAccessPolicy-${Environment}"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action:
+              - s3:*
+            Resource:
+              - !Sub "arn:aws:s3:::${BuildArtifactsBucket}/*"
+          - Effect: Allow
+            Action:
+              - ecr:GetAuthorizationToken
+              - ecr:BatchCheckLayerAvailability
+              - ecr:CompleteLayerUpload 
+              - ecr:InitiateLayerUpload
+              - ecr:PutImage
+              - ecr:UploadLayerPart
+            Resource: !Sub "arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/${ECRImageRepository}"
 
   ProvisionAndDeployProject:
     DependsOn: CloudFormationExecutionRole
@@ -293,7 +362,7 @@ Resources:
       Stages:
         - Name: Source
           Actions:
-            - Name: Source
+            - Name: FetchSource
               ActionTypeId:
                 Category: Source
                 Owner: AWS
@@ -305,9 +374,37 @@ Resources:
                 RepositoryName: !Ref RepositoryName
                 BranchName: !Ref BranchName
               RunOrder: 1
-        - Name: Build
+        - Name: ApprovalAndImagePromotion
           Actions:
-            - Name: Build
+            - Name: SeekApproval
+              ActionTypeId:
+                Category: Approval
+                Owner: AWS
+                Provider: Manual
+                Version: 1
+              RunOrder: 1
+              Configuration:
+                CustomData: Please approve the deployment to ${Environment} environment.
+              RunOrder: 1
+        - Name: Pipeline
+          Actions:
+            - Name: DeployPipeline
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Provider: cloudFormation
+                Version: 1
+              Configuration:
+                ActionMode: CREATE_UPDATE
+                StackName: !Ref 'AWS::StackName'
+                Capabilities: CAPABILITY_NAMED_IAM
+                TemplatePath: SourceOutput::pipeline/home-automation-infra-pipeline.yml
+              InputArtifacts:
+                - Name: SourceOutput
+              RunOrder: 1
+        - Name: ProvisionAndDeploy
+          Actions:
+            - Name: ProvisionAndDeployInfra
               ActionTypeId:
                 Category: Build
                 Owner: AWS
@@ -316,24 +413,7 @@ Resources:
               InputArtifacts:
                 - Name: SourceOutput
               OutputArtifacts:
-                - Name: BuildOutput
-              Configuration:
-                ProjectName: !Ref CodeBuildProject
-              RunOrder: 1
-        - Name: Deploy
-          Actions:
-            - Name: DeployInfrastructure
-              ActionTypeId:
-                Category: Build
-                Owner: AWS
-                Provider: CodeBuild
-                Version: 1
-              InputArtifacts:
-                - Name: BuildOutput
+                - Name: InvokeTerraformOutput
               Configuration:
                 ProjectName: !Ref ProvisionAndDeployProject
               RunOrder: 1
-
-Outputs:
-  ECRRepo:
-    Value: !Ref AppECR
