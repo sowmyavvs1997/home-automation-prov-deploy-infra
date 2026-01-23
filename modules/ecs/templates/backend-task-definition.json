@@ -1,0 +1,61 @@
+{
+  "containerDefinitions": [
+    {
+      "name": "${name}",
+      "image": "${image}",
+      "essential": true,
+      "memoryReservation": 512,
+      "portMappings": [
+        {
+          "containerPort": ${containerPort},
+          "hostPort": ${hostPort},
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        {
+          "name": "DATABASE_HOST",
+          "value": "${db_host}"
+        },
+        {
+          "name": "DATABASE_PORT",
+          "value": "${db_port}"
+        },
+        {
+          "name": "DATABASE_NAME",
+          "value": "${db_name}"
+        },
+        {
+          "name": "REDIS_URL",
+          "value": "redis://redis:6379"
+        },
+        {
+          "name": "MQTT_BROKER",
+          "value": "mqtt://mqtt:1883"
+        },
+        {
+          "name": "ENVIRONMENT",
+          "value": "${env_name}"
+        }
+      ],
+      "secrets": [
+        {
+          "name": "DATABASE_USER",
+          "valueFrom": "${db_username_secret_arn}"
+        },
+        {
+          "name": "DATABASE_PASSWORD",
+          "valueFrom": "${db_password_secret_arn}"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "${awslogsGroup}",
+          "awslogs-region": "${awsRegion}",
+          "awslogs-stream-prefix": "${awslogsStreamPrefix}"
+        }
+      }
+    }
+  ]
+}

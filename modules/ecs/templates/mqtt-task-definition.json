@@ -1,0 +1,25 @@
+{
+  "containerDefinitions": [
+    {
+      "name": "${name}",
+      "image": "${image}",
+      "essential": true,
+      "memoryReservation": 128,
+      "portMappings": [
+        {
+          "containerPort": ${containerPort},
+          "hostPort": ${hostPort},
+          "protocol": "tcp"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "${awslogsGroup}",
+          "awslogs-region": "${awsRegion}",
+          "awslogs-stream-prefix": "${awslogsStreamPrefix}"
+        }
+      }
+    }
+  ]
+}
