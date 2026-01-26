@@ -17,7 +17,7 @@ resource "aws_secretsmanager_secret_version" "db_username" {
 }
 
 resource "aws_secretsmanager_secret" "db_password" {
-  name_prefix = "${var.name}-db-password-"
+  name = "${var.name}-db-password"
   description = "RDS database password for ${var.name}"
 
   tags = {
@@ -35,7 +35,7 @@ resource "aws_secretsmanager_secret_version" "db_password" {
 #############################################################################
 
 resource "aws_iam_role_policy" "ecs_secrets_policy" {
-  name_prefix = "${var.name}-ecs-secrets-"
+  name = "${var.name}-ecs-secrets"
   role        = var.task_execution_role_id
 
   policy = jsonencode({

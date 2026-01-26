@@ -13,30 +13,14 @@
         }
       ],
       "environment": [
-        {
-          "name": "DATABASE_HOST",
-          "value": "${db_host}"
-        },
-        {
-          "name": "DATABASE_PORT",
-          "value": "${db_port}"
-        },
-        {
-          "name": "DATABASE_NAME",
-          "value": "${db_name}"
-        },
-        {
-          "name": "REDIS_URL",
-          "value": "redis://redis:6379"
-        },
-        {
-          "name": "MQTT_BROKER",
-          "value": "mqtt://mqtt:1883"
-        },
-        {
-          "name": "ENVIRONMENT",
-          "value": "${env_name}"
-        }
+        { "name": "DATABASE_HOST", "value": "${db_host}" },
+        { "name": "DATABASE_PORT", "value": "${db_port}" },
+        { "name": "DATABASE_NAME", "value": "${db_name}" },
+
+        { "name": "REDIS_URL", "value": "redis://redis:6379" },
+        { "name": "MQTT_BROKER", "value": "mqtt://mqtt:1883" },
+
+        { "name": "ENVIRONMENT", "value": "${environment}" }
       ],
       "secrets": [
         {

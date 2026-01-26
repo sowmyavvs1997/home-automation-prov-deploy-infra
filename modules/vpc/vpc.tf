@@ -1,5 +1,5 @@
 #############################################################################
-# VPC Configuration
+# VPC
 #############################################################################
 
 resource "aws_vpc" "this" {
@@ -8,7 +8,8 @@ resource "aws_vpc" "this" {
   enable_dns_support   = true
 
   tags = {
-    Name = "${var.name}-vpc"
+    Name = "${var.name_prefix}-vpc"
+    Project = var.project_name
   }
 }
 
@@ -20,7 +21,8 @@ resource "aws_internet_gateway" "this" {
   vpc_id = aws_vpc.this.id
 
   tags = {
-    Name = "${var.name}-igw"
+    Name = "${var.name_prefix}-igw"
+    Project = var.project_name
   }
 }
 
@@ -37,8 +39,9 @@ resource "aws_subnet" "public" {
   map_public_ip_on_launch = true
 
   tags = {
-    Name = "${var.name}-public-subnet-${count.index + 1}"
+    Name = "${var.name_prefix}-public-subnet-${count.index + 1}"
     Type = "Public"
+    Project = var.project_name
   }
 }
 
@@ -50,11 +53,12 @@ resource "aws_subnet" "private" {
   count             = length(var.private_subnet_cidrs)
   vpc_id            = aws_vpc.this.id
   cidr_block        = var.private_subnet_cidrs[count.index]
-  availability_zone = var.availability_zones[count.index]
+  availability_zone = var.availability_zones[count.index % length(var.availability_zones)]
 
   tags = {
-    Name = "${var.name}-private-subnet-${count.index + 1}"
+    Name = "${var.name_prefix}-private-subnet-${count.index + 1}"
     Type = "Private"
+    Project = var.project_name
   }
 }
 
@@ -67,7 +71,8 @@ resource "aws_eip" "nat" {
   domain = "vpc"
 
   tags = {
-    Name = "${var.name}-nat-eip-${count.index + 1}"
+    Name = "${var.name_prefix}-nat-eip-${count.index + 1}"
+    Project = var.project_name
   }
 
   depends_on = [aws_internet_gateway.this]
@@ -83,7 +88,8 @@ resource "aws_nat_gateway" "this" {
   subnet_id     = aws_subnet.public[count.index].id
 
   tags = {
-    Name = "${var.name}-nat-${count.index + 1}"
+    Name = "${var.name_prefix}-nat-${count.index + 1}"
+    Project = var.project_name
   }
 
   depends_on = [aws_internet_gateway.this]
@@ -97,12 +103,13 @@ resource "aws_route_table" "public" {
   vpc_id = aws_vpc.this.id
 
   route {
-    cidr_block      = "0.0.0.0/0"
-    gateway_id      = aws_internet_gateway.this.id
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_internet_gateway.this.id
   }
 
   tags = {
-    Name = "${var.name}-public-rt"
+    Name = "${var.name_prefix}-public-rt"
+    Project = var.project_name
   }
 }
 
@@ -113,7 +120,7 @@ resource "aws_route_table_association" "public" {
 }
 
 #############################################################################
-# Private Route Tables (one per NAT Gateway for HA)
+# Private Route Tables (1 per NAT Gateway)
 #############################################################################
 
 resource "aws_route_table" "private" {
@@ -126,12 +133,22 @@ resource "aws_route_table" "private" {
   }
 
   tags = {
-    Name = "${var.name}-private-rt-${count.index + 1}"
+    Name = "${var.name_prefix}-private-rt-${count.index + 1}"
+    Project = var.project_name
   }
 }
 
+#############################################################################
+# Private Route Table Associations (AZ-aware)
+#############################################################################
+
 resource "aws_route_table_association" "private" {
-  count          = length(aws_subnet.private)
-  subnet_id      = aws_subnet.private[count.index].id
-  route_table_id = aws_route_table.private[count.index % length(aws_route_table.private)].id
+  count = length(aws_subnet.private)
+
+  subnet_id = aws_subnet.private[count.index].id
+
+  # Find NAT / route table in the same AZ
+  route_table_id = aws_route_table.private[
+  index([for az in aws_subnet.public[*].availability_zone : az], aws_subnet.private[count.index].availability_zone)
+  ].id
 }

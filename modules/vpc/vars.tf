@@ -1,36 +1,48 @@
-variable "name" {
-  description = "Name prefix for VPC resources"
+
+variable "aws_region" {
+  description = "AWS region"
   type        = string
+  default     = "ap-south-1"
   validation {
-    condition     = length(var.name) > 0 && length(var.name) <= 32
-    error_message = "Name must be between 1 and 32 characters."
+    condition     = can(regex("^[a-z]{2}-[a-z]+-[0-9]{1}$", var.aws_region))
+    error_message = "AWS region must be a valid region identifier."
   }
 }
+#############################################################################
+# Project / Environment
+#############################################################################
+variable "name_prefix" {
+  description = "Name prefix for all VPC resources"
+  type        = string
+  default     = "ha"
+}
+
+variable "project_name" {
+  description = "Project name"
+  type        = string
+  default     = "home-automation"
+}
+
+#############################################################################
+# VPC Variables
+#############################################################################
 
 variable "cidr_block" {
-  description = "CIDR block for VPC"
+  description = "CIDR block for the VPC"
   type        = string
-  default     = "10.0.0.0/16"
-  validation {
-    condition     = can(cidrhost(var.cidr_block, 0))
-    error_message = "Must be a valid CIDR block."
-  }
 }
 
 variable "public_subnet_cidrs" {
-  description = "CIDR blocks for public subnets"
+  description = "List of public subnet CIDRs"
   type        = list(string)
-  default     = ["10.0.1.0/24", "10.0.2.0/24"]
 }
 
 variable "private_subnet_cidrs" {
-  description = "CIDR blocks for private subnets"
+  description = "List of private subnet CIDRs"
   type        = list(string)
-  default     = ["10.0.10.0/24", "10.0.11.0/24"]
 }
 
 variable "availability_zones" {
-  description = "Availability zones for subnets"
+  description = "List of AZs to use"
   type        = list(string)
-  default     = []
 }

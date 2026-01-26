@@ -3,6 +3,11 @@ variable "name" {
   type        = string
 }
 
+variable "name_prefix" {
+  description = "Name prefix for secrets"
+  type        = string
+}
+
 variable "db_username" {
   description = "Database username to store in Secrets Manager"
   type        = string

@@ -1,5 +1,7 @@
-variable "name_prefix" {
-  description = "Prefix used for naming global IAM resources"
-  type        = string
-  default     = "ha"
+variable "project_name" {
+  type = string
+}
+
+variable "environment" {
+  type = string
 }

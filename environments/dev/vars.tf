@@ -1,5 +1,5 @@
 #############################################################################
-# Core Variables
+# Project / Environment
 #############################################################################
 variable "environment" {
   description = "Environment name"
@@ -10,11 +10,17 @@ variable "environment" {
 variable "project_name" {
   description = "Project name"
   type        = string
+  default     = "home-automation"
+}
+
+variable "name_prefix" {
+  description = "Name prefix for all resources for home automation project"
+  type        = string
   default     = "ha"
 }
 
 #############################################################################
-# Terraform Backend Variables
+# Terraform Variables
 #############################################################################
 
 variable "tf_state_bucket" {
@@ -45,12 +51,6 @@ variable "vpc_cidr" {
   default     = "10.0.0.0/16"
 }
 
-variable "vpc_id" {
-  description = "The ID of the VPC in your AWS Account"
-  type        = string
-  default     = ""
-}
-
 variable "public_subnet_cidrs" {
   description = "CIDR blocks for public subnets"
   type        = list(string)
@@ -63,239 +63,64 @@ variable "private_subnet_cidrs" {
   default     = ["10.0.10.0/24", "10.0.11.0/24"]
 }
 
-#############################################################################
-# Compute Variables
-#############################################################################
-
-variable "log_retention_days" {
-  description = "CloudWatch log retention in days"
-  type        = number
-  default     = 7
-}
-
-variable "aws_logs_group" {
-  description = "CloudWatch log group"
-  type        = string
-  default     = "application_log"
+variable "availability_zones" {
+  description = "List of AZs to use"
+  type        = list(string)
+  default     = ["ap-south-1a", "ap-south-1b"]  # default AZs for Mumbai region
 }
 
 #############################################################################
-# RDS Variables
+# Backend ECS service
 #############################################################################
 
-variable "db_instance_class" {
-  description = "RDS instance class"
+variable "backend_image_tag" {
+  description = "Docker image tag for the backend service"
   type        = string
-  default     = "db.t3.micro"
-}
-
-variable "db_allocated_storage" {
-  description = "Allocated storage in GB"
-  type        = number
-  default     = 20
-}
-
-variable "db_engine_version" {
-  description = "PostgreSQL engine version"
-  type        = string
-  default     = "15"
-}
-
-variable "db_name" {
-  description = "Initial database name"
-  type        = string
-  default     = "homeautomation"
-}
-
-variable "db_username" {
-  description = "Database master username"
-  type        = string
-  default     = "haadmin"
-  validation {
-    condition     = length(var.db_username) > 0
-    error_message = "Database username cannot be empty."
-  }
-}
-
-variable "db_password" {
-  description = "Database master password (REQUIRED - provide via tfvars or environment variable)"
-  type        = string
-  sensitive   = true
-  validation {
-    condition     = length(var.db_password) >= 8
-    error_message = "Database password must be at least 8 characters."
-  }
-}
-
-variable "skip_final_snapshot" {
-  description = "Skip final snapshot on RDS deletion"
-  type        = bool
-  default     = true
-}
-
-variable "backup_retention_period" {
-  description = "Backup retention period in days"
-  type        = number
-  default     = 7
-}
-
-#############################################################################
-# ECS - Backend Variables
-#############################################################################
-
-variable "hab-svc_ecr_image_tag" {
-  type        = string
-  default = ""
-}
-
-variable "backend_image" {
-  description = "Docker image URL for backend service"
-  type        = string
-  default     = "nginx:latest"
+  default     = "latest"
 }
 
 variable "backend_desired_count" {
-  description = "Desired number of backend tasks"
+  description = "Number of ECS backend tasks to run"
   type        = number
-  default     = 1
-  validation {
-    condition     = var.backend_desired_count > 0 && var.backend_desired_count <= 10
-    error_message = "Backend desired count must be between 1 and 10."
-  }
+  default     = 2
 }
 
 variable "backend_cpu" {
-  description = "CPU units for backend (256, 512, 1024, 2048, 4096)"
+  description = "CPU units for backend ECS task"
   type        = number
   default     = 256
-  validation {
-    condition     = contains([256, 512, 1024, 2048, 4096], var.backend_cpu)
-    error_message = "Backend CPU must be one of: 256, 512, 1024, 2048, 4096."
-  }
 }
 
 variable "backend_memory" {
-  description = "Memory in MB for backend"
+  description = "Memory (MB) for backend ECS task"
   type        = number
   default     = 512
 }
 
 #############################################################################
-# ECS - Redis Variables
-#############################################################################
-
-variable "redis_image" {
-  description = "Docker image URL for Redis"
-  type        = string
-  default     = "redis:7-alpine"
-}
-
-variable "redis_desired_count" {
-  description = "Desired number of Redis tasks"
-  type        = number
-  default     = 1
-}
-
-variable "redis_cpu" {
-  description = "CPU units for Redis"
-  type        = number
-  default     = 256
-}
-
-variable "redis_memory" {
-  description = "Memory in MB for Redis"
-  type        = number
-  default     = 512
-}
-
-#############################################################################
-# ECS - MQTT Variables
+# MQTT ECS service (public image)
 #############################################################################
 
 variable "mqtt_image" {
-  description = "Docker image URL for MQTT broker"
+  description = "Docker image for MQTT service (public image)"
   type        = string
   default     = "eclipse-mosquitto:2.0"
 }
 
 variable "mqtt_desired_count" {
-  description = "Desired number of MQTT tasks"
+  description = "Number of ECS MQTT tasks to run"
   type        = number
   default     = 1
 }
 
 variable "mqtt_cpu" {
-  description = "CPU units for MQTT"
+  description = "CPU units for MQTT ECS task"
   type        = number
   default     = 256
 }
 
 variable "mqtt_memory" {
-  description = "Memory in MB for MQTT"
+  description = "Memory (MB) for MQTT ECS task"
   type        = number
   default     = 512
-}
-
-#############################################################################
-# ElastiCache Redis Variables
-#############################################################################
-
-variable "redis_node_type" {
-  description = "ElastiCache Redis node type"
-  type        = string
-  default     = "cache.t3.micro"
-}
-
-variable "redis_num_nodes" {
-  description = "Number of cache nodes"
-  type        = number
-  default     = 1
-}
-
-variable "redis_engine_version" {
-  description = "Redis engine version"
-  type        = string
-  default     = "7.0"
-}
-
-variable "redis_port" {
-  description = "Redis port"
-  type        = number
-  default     = 6379
-}
-
-variable "redis_automatic_failover" {
-  description = "Automatic failover enabled"
-  type        = bool
-  default     = false
-}
-
-variable "redis_multi_az" {
-  description = "Multi-AZ enabled for Redis"
-  type        = bool
-  default     = false
-}
-
-variable "redis_at_rest_encryption" {
-  description = "Encryption at rest for Redis"
-  type        = bool
-  default     = true
-}
-
-variable "redis_transit_encryption" {
-  description = "Transit encryption for Redis"
-  type        = bool
-  default     = false
-}
-
-variable "redis_parameter_family" {
-  description = "Redis parameter family"
-  type        = string
-  default     = "redis7"
-}
-
-variable "redis_maintenance_window" {
-  description = "Redis maintenance window"
-  type        = string
-  default     = "sun:05:00-sun:07:00"
 }
