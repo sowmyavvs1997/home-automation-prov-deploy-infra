@@ -37,7 +37,7 @@ Parameters:
   Environment:
     Type: String
     Default: dev
-    AllowedValues: [dev, sit, prod]
+    AllowedValues: [ dev, sit, prod ]
 
 Resources:
   TFStateBucket:
@@ -71,7 +71,7 @@ Resources:
         Statement:
           - Effect: Allow
             Principal:
-              Service: 
+              Service:
                 - ec2.amazonaws.com
                 - ecs.amazonaws.com
             Action: sts:AssumeRole
@@ -87,7 +87,7 @@ Resources:
   Ec2InstanceRolePolicy:
     Type: AWS::IAM::ManagedPolicy
     Properties:
-      Description: Policy for EC2 Instance Role to access S3 and ECR 
+      Description: Policy for EC2 Instance Role to access S3 and ECR
       Path: /
       ManagedPolicyName: !Sub "${ServiceName}-${Environment}-EC2InstanceRolePolicy"
       PolicyDocument:
@@ -128,7 +128,7 @@ Resources:
         Statement:
           - Effect: Allow
             Principal:
-              Service: 
+              Service:
                 - ecs.amazonaws.com
                 - ecs-tasks.amazonaws.com
                 - ec2.amazonaws.com
@@ -146,7 +146,7 @@ Resources:
       RoleName: !Sub "${ServiceName}-${Environment}-ECSRole"
       PermissionsBoundary: !Sub "arn:aws:iam::${AWS::AccountId}:policy/amp-permissions-boundary"
 
-      
+
   ECSAccessPolicy:
     Type: AWS::IAM::ManagedPolicy
     Properties:
@@ -162,7 +162,6 @@ Resources:
             Action:
               - 'ssm:PutParameter'
               - 'ssm:GetParameterByPath'
-            Resource: "*"
           - Effect: Allow
             Action:
               - cloudformation:ListExports
@@ -191,7 +190,7 @@ Resources:
               - s3:PutObject
               - s3:GetObject
               - s3:GetObjectVersion
-            Resource: 
+            Resource:
               - !Sub "arn:aws:s3:::${BuildArtifactsBucket}/*"
           - Effect: Allow
             Action:
@@ -250,7 +249,7 @@ Resources:
     Properties:
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
-        Statement:   
+        Statement:
           - Effect: Allow
             Principal:
               Service: cloudformation.amazonaws.com
@@ -281,7 +280,7 @@ Resources:
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
-        Version: "2012-10-17"     
+        Version: "2012-10-17"
         Statement:
           - Effect: Allow
             Principal:
@@ -314,7 +313,7 @@ Resources:
             Action:
               - ecr:GetAuthorizationToken
               - ecr:BatchCheckLayerAvailability
-              - ecr:CompleteLayerUpload 
+              - ecr:CompleteLayerUpload
               - ecr:InitiateLayerUpload
               - ecr:PutImage
               - ecr:UploadLayerPart
@@ -325,7 +324,7 @@ Resources:
     Type: AWS::CodeBuild::Project
     Properties:
       Name: !Sub '${AWS::StackName}-InvokeTerraformBuild-${Environment}'
-      ServiceRole: !GetAtt [ECSRole, Arn]
+      ServiceRole: !GetAtt [ ECSRole, Arn ]
       Artifacts: { Type: CODEPIPELINE }
       Environment:
         ComputeType: BUILD_GENERAL1_SMALL
@@ -334,7 +333,7 @@ Resources:
         PrivilegedMode: true
       Source:
         Type: CODEPIPELINE
-        BuildSpec: !Sub |        
+        BuildSpec: !Sub |
           version: 0.2
           phases:
             build:
@@ -357,7 +356,7 @@ Resources:
   Pipeline:
     Type: AWS::CodePipeline::Pipeline
     Properties:
-      RoleArn: !GetAtt [PipelineExecutionRole, Arn]
+      RoleArn: !GetAtt [ PipelineExecutionRole, Arn ]
       ArtifactStore:
         Type: S3
         Location: !Ref BuildArtifactsBucket
@@ -384,7 +383,6 @@ Resources:
                 Owner: AWS
                 Provider: Manual
                 Version: 1
-              RunOrder: 1
               Configuration:
                 CustomData: Please approve the deployment to ${Environment} environment.
               RunOrder: 1
@@ -419,3 +417,20 @@ Resources:
               Configuration:
                 ProjectName: !Ref ProvisionAndDeployProject
               RunOrder: 1
+
+Outputs:
+  ECSRoleName:
+    Description : "Name ECSRole"
+    Value: !Ref ECSRole
+    Export:
+      Name: !Sub ECSRole
+  ECSRoleArn:
+    Description: "ARN of ECSRole"
+    Value: !Ref ECSRoleArn
+    Export:
+      Name: !Sub ECSRoleArn
+  ECSRoleProfile:
+    Description: "Name EC2InstanceProfile"
+    Value: !Ref EC2InstanceProfile
+    Export:
+      Name: !Sub EC2InstanceProfile

@@ -50,4 +50,7 @@ variable "log_stream_prefix" { type = string }
 # Security / SSH
 variable "sg_name" { type = string }
 variable "ssh_port" { type = number }
-variable "health_check_path" { type = string, default = "/" }
+variable "health_check_path" {
+  type = string
+  default = "/"
+}
