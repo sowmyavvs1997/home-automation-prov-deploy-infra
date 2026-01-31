@@ -4,7 +4,7 @@ Description: HAB-Home Automation Backend, Provision & Deploy Infrastructure Pipe
 Parameters:
   ServiceName:
     Type: String
-    Default: home-automation-backend-svc
+    Default: ha-backend
     Description: Pipeline service to provision and deploy Home Automation app backend
   ECRImageRepository:
     Type: String
@@ -16,7 +16,7 @@ Parameters:
     Description: CodeCommit repository name for the application code
   TerraformStateBucket:
     Type: String
-    Default: 'HAB-tf-state-${Environment}-${AWS::AccountId}'
+    Default: '${ServiceName}-${Environment}-tf-state'
     Description: S3 bucket name for Terraform state files
   BranchName:
     Type: String
@@ -32,7 +32,7 @@ Parameters:
     Description: Version of Terraform to use
   TerraformSha256:
     Type: String
-    Default: '01e1698d2563cf4780438468f9f815eedf707e8ea01f87bb7621e24a00e21d12'
+    Default: '178b2a602251bb68b94732aceca2cc1023d87597cb83dba92cab31b6689edb4d'
     Description: SHA256 checksum for the Terraform binary
   Environment:
     Type: String
@@ -49,7 +49,7 @@ Resources:
   BuildArtifactsBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Sub "HAB-artifacts-${Environment}-${AWS::AccountId}"
+      BucketName: !Sub "${ServiceName}-${Environment}-artifacts"
       VersioningConfiguration: { Status: Enabled }
 
   TerraformLockTable:
@@ -62,7 +62,7 @@ Resources:
       KeySchema:
         - AttributeName: LockID
           KeyType: HASH
-      TableName: !Sub "tf-lock-HAB-${Environment}"
+      TableName: !Sub "${ServiceName}-${Environment}-tf-state-lock"
   EC2InstanceRole:
     Type: AWS::IAM::Role
     Properties:
@@ -80,15 +80,16 @@ Resources:
         - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
         - arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess
 
-      RoleName: !Sub "HAB-EC2InstanceRole-${Environment}"
-      PermissionsBoundary: arn:aws:iam::aws:policy/AdministratorAccess
+      RoleName: !Sub "${ServiceName}-${Environment}-EC2InstanceRole"
+      PermissionsBoundary: !Sub "arn:aws:iam::${AWS::AccountId}:policy/amp-permissions-boundary"
+
 
   Ec2InstanceRolePolicy:
     Type: AWS::IAM::ManagedPolicy
     Properties:
       Description: Policy for EC2 Instance Role to access S3 and ECR 
       Path: /
-      ManagedPolicyName: !Sub "HAB-EC2InstanceRolePolicy-${Environment}"
+      ManagedPolicyName: !Sub "${ServiceName}-${Environment}-EC2InstanceRolePolicy"
       PolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -117,7 +118,7 @@ Resources:
       Path: "/"
       Roles:
         - !Ref EC2InstanceRole
-      InstanceProfileName: !Sub "HAB-EC2InstanceProfile-${Environment}"
+      InstanceProfileName: !Sub "${ServiceName}-${Environment}-EC2InstanceProfile"
 
   ECSRole:
     Type: AWS::IAM::Role
@@ -142,15 +143,16 @@ Resources:
         - arn:aws:iam::aws:policy/AmazonS3FullAccess
         - arn:aws:iam::aws:policy/CloudWatchFullAccess
         - arn:aws:iam::aws:policy/AmazonSSMFullAccess
-      RoleName: !Sub "HAB-ECSRole-${Environment}"
-      PermissionsBoundary: arn:aws:iam::aws:policy/AdministratorAccess
+      RoleName: !Sub "${ServiceName}-${Environment}-ECSRole"
+      PermissionsBoundary: !Sub "arn:aws:iam::${AWS::AccountId}:policy/amp-permissions-boundary"
+
       
   ECSAccessPolicy:
     Type: AWS::IAM::ManagedPolicy
     Properties:
       Description: Policy for ECS Role to access ECR and S3
       Path: "/"
-      ManagedPolicyName: !Sub "HAB-ECSRolePolicy-${Environment}"
+      ManagedPolicyName: !Sub "${ServiceName}-${Environment}-ECSRolePolicy"
       PolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -179,8 +181,6 @@ Resources:
               - servicediscovery:*
               - iam:*
               - cloudwatch:*
-              - route53:createHostedZone
-              - route53:deleteHostedZone
               - cloudformation:*
               - kms:*
               - iam:UpdateAssumeRolePolicy
@@ -217,15 +217,15 @@ Resources:
       ManagedPolicyArns:
         - !Ref CodeBuildAccessPolicy
         - arn:aws:iam::aws:policy/AdministratorAccess
-      RoleName: !Sub '${ServiceName}-CodeBuildRole-${Environment}'
-      PermissionsBoundary: arn:aws:iam::aws:policy/AdministratorAccess
+      RoleName: !Sub '${ServiceName}-${Environment}-CodeBuildRole'
+      PermissionsBoundary: !Sub "arn:aws:iam::${AWS::AccountId}:policy/amp-permissions-boundary"
 
   CodeBuildAccessPolicy:
     Type: AWS::IAM::ManagedPolicy
     Properties:
       Description: Policy for CodeBuild to access ECR and S3
       Path: "/"
-      ManagedPolicyName: !Sub "HAB-CodeBuildRolePolicy-${Environment}"
+      ManagedPolicyName: !Sub "${ServiceName}-${Environment}-CodeBuildRolePolicy"
       PolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -259,15 +259,16 @@ Resources:
       ManagedPolicyArns:
         - !Ref CFNPipelineExecutionPolicy
         - arn:aws:iam::aws:policy/AdministratorAccess
-      RoleName: !Sub '${ServiceName}-CloudFormationExecutionRole-${Environment}'
-      PermissionsBoundary: arn:aws:iam::aws:policy/AdministratorAccess
+      RoleName: !Sub '${ServiceName}-${Environment}-CloudFormationExecutionRole'
+      PermissionsBoundary: !Sub "arn:aws:iam::${AWS::AccountId}:policy/amp-permissions-boundary"
+
 
   CFNPipelineExecutionPolicy:
     Type: AWS::IAM::ManagedPolicy
     Properties:
       Description: Policy for CloudFormation Pipeline Execution Role
       Path: "/"
-      ManagedPolicyName: !Sub "HAB-CloudFormationExecutionPolicy-${Environment}"
+      ManagedPolicyName: !Sub "${ServiceName}-${Environment}-CFNExecutionPolicy"
       PolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -291,15 +292,16 @@ Resources:
         - !Ref CFNPipelineExecutionPolicy
         - !Ref CodePipelineAccessPolicy
         - arn:aws:iam::aws:policy/AdministratorAccess
-      RoleName: !Sub '${ServiceName}-PipelineExecutionRole-${Environment}'
-      PermissionsBoundary: arn:aws:iam::aws:policy/AdministratorAccess
+      RoleName: !Sub '${ServiceName}-${Environment}-PipelineExecutionRole'
+      PermissionsBoundary: !Sub "arn:aws:iam::${AWS::AccountId}:policy/amp-permissions-boundary"
+
 
   CodePipelineAccessPolicy:
     Type: AWS::IAM::ManagedPolicy
     Properties:
       Description: Policy for CloudFormation Pipeline Access Role
       Path: "/"
-      ManagedPolicyName: !Sub "HAB-CloudFormationPipelineAccessPolicy-${Environment}"
+      ManagedPolicyName: !Sub "${ServiceName}-${Environment}-CFNPipelineAccessPolicy"
       PolicyDocument:
         Version: "2012-10-17"
         Statement:
