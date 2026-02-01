@@ -135,6 +135,7 @@ Resources:
                 - 'codebuild.amazonaws.com'
                 - 'cloudformation.amazonaws.com'
                 - 'config.amazonaws.com'
+                - 'codepipeline.amazonaws.com'
       Path: /
       ManagedPolicyArns:
         - !Ref ECSAccessPolicy
@@ -346,6 +347,11 @@ Resources:
               - 'codepipeline:GetPipeline'
             Resource:
               - "*"
+          - Effect: Allow
+            Action:
+              - 'codebuild:StartBuild'
+              - 'codebuild:BatchGetBuilds'
+            Resource:  "*"
 
   CFNPipelinePolicy:
     Type: AWS::IAM::ManagedPolicy
@@ -365,7 +371,7 @@ Resources:
     Type: AWS::CodeBuild::Project
     Properties:
       Name: !Sub '${AWS::StackName}-InvokeTerraformBuild'
-      ServiceRole: !GetAtt [ ECSRole, Arn ]
+      ServiceRole: !GetAtt [ CodeBuildServiceRole, Arn ]
       Artifacts: { Type: CODEPIPELINE }
       Environment:
         ComputeType: 'BUILD_GENERAL1_SMALL'
