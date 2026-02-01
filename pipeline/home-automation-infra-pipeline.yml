@@ -372,6 +372,7 @@ Resources:
     Properties:
       Name: !Sub '${AWS::StackName}-InvokeTerraformBuild'
       ServiceRole: !GetAtt [ CodeBuildServiceRole, Arn ]
+      TimeoutInMinutes: 10
       Artifacts: { Type: CODEPIPELINE }
       Environment:
         ComputeType: 'BUILD_GENERAL1_SMALL'
@@ -382,24 +383,31 @@ Resources:
         Type: CODEPIPELINE
         BuildSpec: !Sub |
           version: 0.2
+          env:
+            shell: bash
           phases:
             build:
               commands:
-                - echo "Building infrastructure..."
-                - yum install -y jq dos2unix
-                - cd /tmp && curl -o terraform.zip https://releases.hashicorp.com/terraform/${TerraformVersion}/terraform_${TerraformVersion}_linux_amd64.zip && echo "${TerraformSha256}  terraform.zip" | sha256sum -c --quiet && unzip terraform.zip && mv terraform /usr/bin/ && rm terraform.zip
+                - echo "Installing dependencies..."
+                - apt-get update -y
+                - apt-get install -y jq dos2unix unzip curl
+                - echo "Installing Terraform ${TerraformVersion}..."
+                - cd /tmp
+                - curl -o terraform.zip https://releases.hashicorp.com/terraform/${TerraformVersion}/terraform_${TerraformVersion}_linux_amd64.zip
+                - echo "${TerraformSha256}  terraform.zip" | sha256sum -c --quiet
+                - unzip terraform.zip
+                - mv terraform /usr/local/bin/
+                - terraform version
             post_build:
               commands:
-                - cd ..; curl 169.254.170.2$AWS_CONTAINER_CREDENTIALS_RELATIVE_URI | jq 'to_entries | [ .[] | select(.key | (contains("Expiration") or contains("RoleArn") | not)) ] | map(if .key == "AccessKeyId" then . + {"key":"AWS_ACCESS_KEY_ID"} else . end) | map(if .key == "SecretAccessKey" then . + {"key":"AWS_SECRET_ACCESS_KEY"} else . end) | map(if .key == "Token" then . + {"key":"AWS_SESSION_TOKEN"} else . end) | map("export \(.key)=\(.value)") | .[]' -r > /tmp/aws_cred_export.txt
-                - pwd;ls -ltr;source /tmp/aws_cred_export.txt
-                - which dos2unix
-                - cd scripts/; pwd; ls -ltr; dos2unix run.sh; chmod +x run.sh; source /tmp/aws_cred_export.txt; bash -x run.sh
-                - pwd
-                - exit
+                - echo "Running Terraform scripts"
+                - cd scripts
+                - dos2unix run.sh
+                - chmod +x run.sh
+                - bash -x run.sh
           artifacts:
             files:
-              - 'pipeline/*'
-          TimeoutInMinutes: 10
+              - pipeline/*
   Pipeline:
     Type: AWS::CodePipeline::Pipeline
     Properties:
