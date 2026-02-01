@@ -4,7 +4,7 @@ Description: HAB-Home Automation Backend, Provision & Deploy Infrastructure Pipe
 Parameters:
   ServiceName:
     Type: String
-    Default: ha-backend
+    Default: 'ha-backend'
     Description: Pipeline service to provision and deploy Home Automation app backend
   ECRImageRepository:
     Type: String
@@ -14,17 +14,13 @@ Parameters:
     Type: String
     Default: 'home-automation-prov-deploy-infra-amp'
     Description: CodeCommit repository name for the application code
-  TerraformStateBucket:
-    Type: String
-    Default: '${ServiceName}-${Environment}-tf-state'
-    Description: S3 bucket name for Terraform state files
   BranchName:
     Type: String
-    Default: main
+    Default: 'main'
     Description: Branch name for the CodeCommit repository
   ImageTag:
     Type: String
-    Default: latest
+    Default: 'latest'
     Description: Docker image tag for the application
   TerraformVersion:
     Type: String
@@ -36,14 +32,14 @@ Parameters:
     Description: SHA256 checksum for the Terraform binary
   Environment:
     Type: String
-    Default: dev
+    Default: 'dev'
     AllowedValues: [ dev, sit, prod ]
 
 Resources:
   TFStateBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Ref TerraformStateBucket
+      BucketName: !Sub "${ServiceName}-${Environment}-tf-state"
       VersioningConfiguration: { Status: Enabled }
 
   BuildArtifactsBucket:
@@ -77,39 +73,40 @@ Resources:
             Action: sts:AssumeRole
       Path: /
       ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
-        - arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess
+        - !Ref EC2InstanceRolePolicy
+        - !Sub 'arn:aws:iam::${AWS::AccountId}:policy/amp-deny-policy'
+        - 'arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore'
 
       RoleName: !Sub "${ServiceName}-${Environment}-EC2InstanceRole"
       PermissionsBoundary: !Sub "arn:aws:iam::${AWS::AccountId}:policy/amp-permissions-boundary"
 
 
-  Ec2InstanceRolePolicy:
+  EC2InstanceRolePolicy:
     Type: AWS::IAM::ManagedPolicy
     Properties:
       Description: Policy for EC2 Instance Role to access S3 and ECR
-      Path: /
+      Path: "/"
       ManagedPolicyName: !Sub "${ServiceName}-${Environment}-EC2InstanceRolePolicy"
       PolicyDocument:
         Version: "2012-10-17"
         Statement:
           - Effect: Allow
             Action:
-              - s3:*
-              - ecr:*
-              - ecs:*
-              - cloudformation:*
-              - autoscaling:*
-              - iam:PassRole
-              - iam:createRole
-              - iam:ListInstanceProfiles
-              - iam:AddRoleToInstanceProfile
-              - iam:CreateInstanceProfile
-              - cloudwatch:*
-              - elasticloadbalancing:*
-              - elasticCache:*
-              - elasticBeanstalk:*
-              - ec2:*
+              - 's3:*'
+              - 'ecr:*'
+              - 'ecs:*'
+              - 'cloudformation:*'
+              - 'autoscaling:*'
+              - 'iam:PassRole'
+              - 'iam:CreateRole'
+              - 'iam:ListInstanceProfiles'
+              - 'iam:AddRoleToInstanceProfile'
+              - 'iam:CreateInstanceProfile'
+              - 'cloudwatch:*'
+              - 'elasticloadbalancing:*'
+              - 'elasticcache:*'
+              - 'elasticBeanstalk:*'
+              - 'ec2:*'
             Resource: "*"
 
   EC2InstanceProfile:
@@ -127,17 +124,21 @@ Resources:
         Version: "2012-10-17"
         Statement:
           - Effect: Allow
+            Action:
+              - 'sts:AssumeRole'
             Principal:
               Service:
-                - ecs.amazonaws.com
-                - ecs-tasks.amazonaws.com
-                - ec2.amazonaws.com
-                - ssm.amazonaws.com
-                - codebuild.amazonaws.com
-                - cloudformation.amazonaws.com
-                - config.amazonaws.com
+                - 'ecs.amazonaws.com'
+                - 'ecs-tasks.amazonaws.com'
+                - 'ec2.amazonaws.com'
+                - 'ssm.amazonaws.com'
+                - 'codebuild.amazonaws.com'
+                - 'cloudformation.amazonaws.com'
+                - 'config.amazonaws.com'
       Path: /
       ManagedPolicyArns:
+        - !Ref ECSAccessPolicy
+        - !Sub 'arn:aws:iam::${AWS::AccountId}:policy/amp-deny-policy'
         - arn:aws:iam::aws:policy/AmazonEC2ContainerServiceFullAccess
         - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryFullAccess
         - arn:aws:iam::aws:policy/AmazonS3FullAccess
@@ -164,26 +165,24 @@ Resources:
               - 'ssm:GetParameterByPath'
           - Effect: Allow
             Action:
-              - cloudformation:ListExports
+              - 'cloudformation:ListExports'
             Resource: "*"
           - Effect: Allow
             Action:
-              - ecs:*
-              - ecr:*
-              - s3:*
-              - elasticfilesystem:*
-              - ec2:*
-              - elasticloadbalancing:*
-              - iam:PassRole
-              - iam:CreateRole
-              - autoscaling:*
-              - servicediscovery:*
-              - iam:*
-              - cloudwatch:*
-              - cloudformation:*
-              - kms:*
-              - iam:UpdateAssumeRolePolicy
-              - logs:*
+              - 'ecs:*'
+              - 'ecr:*'
+              - 's3:*'
+              - 'elasticfilesystem:*'
+              - 'ec2:*'
+              - 'elasticloadbalancing:*'
+              - 'autoscaling:*'
+              - 'servicediscovery:*'
+              - 'iam:*'
+              - 'cloudwatch:*'
+              - 'cloudformation:*'
+              - 'kms:*'
+              - 'iam:UpdateAssumeRolePolicy'
+              - 'logs:*'
             Resource: "*"
           - Effect: Allow
             Action:
@@ -194,12 +193,12 @@ Resources:
               - !Sub "arn:aws:s3:::${BuildArtifactsBucket}/*"
           - Effect: Allow
             Action:
-              - ecr:GetAuthorizationToken
-              - ecr:BatchCheckLayerAvailability
-              - ecr:CompleteLayerUpload
-              - ecr:InitiateLayerUpload
-              - ecr:PutImage
-              - ecr:UploadLayerPart
+              - 'ecr:GetAuthorizationToken'
+              - 'ecr:BatchCheckLayerAvailability'
+              - 'ecr:CompleteLayerUpload'
+              - 'ecr:InitiateLayerUpload'
+              - 'ecr:PutImage'
+              - 'ecr:UploadLayerPart'
             Resource: !Sub "arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/${ECRImageRepository}"
 
   CodeBuildServiceRole:
@@ -215,7 +214,8 @@ Resources:
       Path: /
       ManagedPolicyArns:
         - !Ref CodeBuildAccessPolicy
-        - arn:aws:iam::aws:policy/AdministratorAccess
+        - !Sub 'arn:aws:iam::${AWS::AccountId}:policy/amp-deny-policy'
+        - 'arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryFullAccess'
       RoleName: !Sub '${ServiceName}-${Environment}-CodeBuildRole'
       PermissionsBoundary: !Sub "arn:aws:iam::${AWS::AccountId}:policy/amp-permissions-boundary"
 
@@ -224,25 +224,36 @@ Resources:
     Properties:
       Description: Policy for CodeBuild to access ECR and S3
       Path: "/"
-      ManagedPolicyName: !Sub "${ServiceName}-${Environment}-CodeBuildRolePolicy"
+      ManagedPolicyName: !Sub "${ServiceName}-${Environment}-CodeBuildRole"
       PolicyDocument:
         Version: "2012-10-17"
         Statement:
           - Effect: Allow
             Action:
-              - ecr:GetAuthorizationToken
-              - ecr:BatchCheckLayerAvailability
-              - ecr:CompleteLayerUpload
-              - ecr:InitiateLayerUpload
-              - ecr:PutImage
-              - ecr:UploadLayerPart
-            Resource: !Sub "arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/${ECRImageRepository}"
+              - 'logs:CreateLogGroup'
+              - 'logs:CreateLogStream'
+              - 'logs:PutLogEvents'
+            Resource:
+              - !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${AWS::StackName}*'
+              - !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${AWS::StackName}-image:*'
           - Effect: Allow
             Action:
-              - s3:GetObject
-              - s3:GetObjectVersion
+              - 's3:GetObject'
+              - 's3:GetObjectVersion'
+              - 's3:PutObject'
             Resource:
-              - !Sub "arn:aws:s3:::${BuildArtifactsBucket}/*"
+              - !Sub 'arn:aws:s3:::${BuildArtifactsBucket}/*'
+
+          - Effect: Allow
+            Action:
+              - 'ecr:GetAuthorizationToken'
+              - 'ecr:BatchCheckLayerAvailability'
+              - 'ecr:CompleteLayerUpload'
+              - 'ecr:InitiateLayerUpload'
+              - 'ecr:PutImage'
+              - 'ecr:UploadLayerPart'
+            Resource:
+              - !Sub "arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/${ECRImageRepository}"
 
   CloudFormationExecutionRole:
     Type: AWS::IAM::Role
@@ -253,11 +264,14 @@ Resources:
           - Effect: Allow
             Principal:
               Service: cloudformation.amazonaws.com
-            Action: sts:AssumeRole
+            Action:
+              - 'sts:AssumeRole'
         Path: /
       ManagedPolicyArns:
         - !Ref CFNPipelineExecutionPolicy
-        - arn:aws:iam::aws:policy/AdministratorAccess
+        - !Sub 'arn:aws:iam::${AWS::AccountId}:policy/amp-deny-policy'
+        - 'arn:aws:iam::aws:policy/AmazonS3FullAccess'
+        - 'arn:aws:iam::aws:policy/IAMFullAccess'
       RoleName: !Sub '${ServiceName}-${Environment}-CloudFormationExecutionRole'
       PermissionsBoundary: !Sub "arn:aws:iam::${AWS::AccountId}:policy/amp-permissions-boundary"
 
@@ -273,7 +287,16 @@ Resources:
         Statement:
           - Effect: Allow
             Action:
-              - cloudformation:*
+              - 'cloudformation:*'
+              - 'codepipeline:UpdatePipeline'
+              - 'codepipeline:GetPipeline'
+              - 'codebuild:StartBuild'
+              - 'codebuild:BatchGetBuilds'
+              - 'codebuild:UpdateProject'
+              - 'ec2:*'
+              - 's3:*'
+              - 'apigateway:POST'
+              - 'iam:*'
             Resource: "*"
 
   PipelineExecutionRole:
@@ -285,12 +308,14 @@ Resources:
           - Effect: Allow
             Principal:
               Service: codepipeline.amazonaws.com
-            Action: sts:AssumeRole
+            Action: 'sts:AssumeRole'
       Path: /
       ManagedPolicyArns:
-        - !Ref CFNPipelineExecutionPolicy
+        - !Ref CFNPipelinePolicy
         - !Ref CodePipelineAccessPolicy
-        - arn:aws:iam::aws:policy/AdministratorAccess
+        - 'arn:aws:iam::aws:policy/AWSCodeCommitFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonS3FullAccess'
+        - !Sub 'arn:aws:iam::${AWS::AccountId}:policy/amp-deny-policy'
       RoleName: !Sub '${ServiceName}-${Environment}-PipelineExecutionRole'
       PermissionsBoundary: !Sub "arn:aws:iam::${AWS::AccountId}:policy/amp-permissions-boundary"
 
@@ -306,18 +331,24 @@ Resources:
         Statement:
           - Effect: Allow
             Action:
-              - s3:*
+              - 'iam:PassRole'
+              - 'iam:GetPolicy'
+              - 'codepipeline:GetPipeline'
             Resource:
-              - !Sub "arn:aws:s3:::${BuildArtifactsBucket}/*"
+              - "*"
+
+  CFNPipelinePolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: CloudFormation Pipeline Execution Policy
+      Path: "/"
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
           - Effect: Allow
             Action:
-              - ecr:GetAuthorizationToken
-              - ecr:BatchCheckLayerAvailability
-              - ecr:CompleteLayerUpload
-              - ecr:InitiateLayerUpload
-              - ecr:PutImage
-              - ecr:UploadLayerPart
-            Resource: !Sub "arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/${ECRImageRepository}"
+              - 'cloudformation:*'
+            Resource: "*"
 
   ProvisionAndDeployProject:
     DependsOn: CloudFormationExecutionRole
@@ -327,9 +358,9 @@ Resources:
       ServiceRole: !GetAtt [ ECSRole, Arn ]
       Artifacts: { Type: CODEPIPELINE }
       Environment:
-        ComputeType: BUILD_GENERAL1_SMALL
+        ComputeType: 'BUILD_GENERAL1_SMALL'
         Image: aws/codebuild/eb-go-1.5-amazonlinux-64:2.9.1
-        Type: LINUX_CONTAINER
+        Type: 'LINUX_CONTAINER'
         PrivilegedMode: true
       Source:
         Type: CODEPIPELINE
@@ -418,19 +449,19 @@ Resources:
                 ProjectName: !Ref ProvisionAndDeployProject
               RunOrder: 1
 
-Outputs:
-  ECSRoleName:
-    Description : "Name ECSRole"
-    Value: !Ref ECSRole
-    Export:
-      Name: !Sub ECSRole
-  ECSRoleArn:
-    Description: "ARN of ECSRole"
-    Value: !Ref ECSRoleArn
-    Export:
-      Name: !Sub ECSRoleArn
-  ECSRoleProfile:
-    Description: "Name EC2InstanceProfile"
-    Value: !Ref EC2InstanceProfile
-    Export:
-      Name: !Sub EC2InstanceProfile
+#Outputs:
+#  ECSRoleName:
+#    Description : "Name ECSRole"
+#    Value: !Ref ECSRole
+#    Export:
+#      Name: !Sub ECSRole
+#  ECSRoleArn:
+#    Description: "ARN of ECSRole"
+#    Value: !Ref ECSRoleArn
+#    Export:
+#      Name: !Sub ECSRoleArn
+#  ECSRoleProfile:
+#    Description: "Name EC2InstanceProfile"
+#    Value: !Ref EC2InstanceProfile
+#    Export:
+#      Name: !Sub EC2InstanceProfile
