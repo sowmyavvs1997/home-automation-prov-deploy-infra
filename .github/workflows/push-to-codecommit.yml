@@ -25,6 +25,12 @@ jobs:
           role-to-assume: arn:aws:iam::223533143333:role/GitHubToCodeCommitPushAndPullRole
           aws-region: ap-south-1
 
+      - name: Configure Git for CodeCommit
+        run: |
+          git config --global credential.helper '!aws codecommit credential-helper $@'
+          git config --global credential.UseHttpPath true
+
+
       - name: Push to CodeCommit
         run: |
           git config --global user.name "Sai Sowmya"
