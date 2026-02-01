@@ -387,6 +387,7 @@ Resources:
   Pipeline:
     Type: AWS::CodePipeline::Pipeline
     Properties:
+      Name: !Sub "${ServiceName}-${Environment}-pipeline"
       RoleArn: !GetAtt [ PipelineExecutionRole, Arn ]
       ArtifactStore:
         Type: S3
@@ -429,6 +430,7 @@ Resources:
                 ActionMode: CREATE_UPDATE
                 StackName: !Ref 'AWS::StackName'
                 Capabilities: CAPABILITY_NAMED_IAM
+                RoleArn: !GetAtt CloudFormationExecutionRole.Arn
                 TemplatePath: SourceOutput::pipeline/home-automation-infra-pipeline.yml
               InputArtifacts:
                 - Name: SourceOutput
