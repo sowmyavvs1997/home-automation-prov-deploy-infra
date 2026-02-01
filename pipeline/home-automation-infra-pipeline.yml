@@ -393,11 +393,10 @@ Resources:
                 - cd /tmp && curl -o terraform.zip https://releases.hashicorp.com/terraform/${TerraformVersion}/terraform_${TerraformVersion}_linux_amd64.zip && echo "${TerraformSha256}  terraform.zip" | sha256sum -c --quiet && unzip terraform.zip && mv terraform /usr/bin/ && rm terraform.zip
             post_build:
               commands:
-                - cd ..; curl 169.254.170.2$AWS_CONTAINER_CREDENTIALS_RELATIVE_URI | jq 'to_entries | [ .[] | select(.key | (contains("Expiration") or contains("RoleArn") | not)) ] | map(if .key == "AccessKeyId" then . + {"key":"AWS_ACCESS_KEY_ID"} else . end) | map(if .key == "SecretAccessKey" then . + {"key":"AWS_SECRET_ACCESS_KEY"} else . end) | map(if .key == "Token" then . + {"key":"AWS_SESSION_TOKEN"} else . end) | map("export \(.key)=\(.value)") | .[]' -r > /tmp/aws_cred_export.txt
+                - curl 169.254.170.2$AWS_CONTAINER_CREDENTIALS_RELATIVE_URI | jq 'to_entries | [ .[] | select(.key | (contains("Expiration") or contains("RoleArn") | not)) ] | map(if .key == "AccessKeyId" then . + {"key":"AWS_ACCESS_KEY_ID"} else . end) | map(if .key == "SecretAccessKey" then . + {"key":"AWS_SECRET_ACCESS_KEY"} else . end) | map(if .key == "Token" then . + {"key":"AWS_SESSION_TOKEN"} else . end) | map("export \(.key)=\(.value)") | .[]' -r > /tmp/aws_cred_export.txt
                 - pwd;ls -ltr;source /tmp/aws_cred_export.txt
                 - which dos2unix
-                - cd scripts/; pwd; ls -ltr; dos2unix run.sh; chmod +x run.sh; source /tmp/aws_cred_export.txt; bash -x run.sh
-                - pwd
+                - cd scripts; pwd; ls -ltr; dos2unix run.sh; chmod +x run.sh; source /tmp/aws_cred_export.txt; bash -x run.sh
                 - exit
             artifacts:
               files:
