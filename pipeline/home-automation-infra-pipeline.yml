@@ -398,6 +398,11 @@ Resources:
                 - pwd;ls -ltr; 
                 - source /tmp/aws_cred_export.txt
                 - which dos2unix
+                - echo "Moving to source directory"
+                - cd $CODEBUILD_SRC_DIR
+                - pwd
+                - ls -
+                - echo "Executing run.sh"
                 - cd scripts; pwd; ls -ltr; dos2unix run.sh; chmod +x run.sh; source /tmp/aws_cred_export.txt; bash -x run.sh
                 - pwd
                 - exit
