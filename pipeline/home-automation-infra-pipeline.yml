@@ -396,10 +396,10 @@ Resources:
                 - cd scripts/; pwd; ls -ltr; dos2unix run.sh; chmod +x run.sh; source /tmp/aws_cred_export.txt; bash -x run.sh
                 - pwd
                 - exit
-            artifacts:
-              files:
-                - 'pipeline/*'
-      TimeoutInMinutes: 10
+          artifacts:
+            files:
+              - 'pipeline/*'
+          TimeoutInMinutes: 10
   Pipeline:
     Type: AWS::CodePipeline::Pipeline
     Properties:
