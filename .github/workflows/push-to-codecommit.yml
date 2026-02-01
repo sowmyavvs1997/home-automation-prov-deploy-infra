@@ -22,7 +22,7 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::<ACCOUNT_ID>:role/GitHubToCodeCommitPushAndPullRole
+          role-to-assume: arn:aws:iam::223533143333:role/GitHubToCodeCommitPushAndPullRole
           aws-region: ap-south-1
 
       - name: Push to CodeCommit
