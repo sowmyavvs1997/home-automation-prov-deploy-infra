@@ -302,7 +302,7 @@ Resources:
               - 'apigateway:POST'
               - 'iam:*'
             Resource: "*"
-          - Effect: "Allow",
+          - Effect: "Allow"
             Action:
               - 'dynamodb:DescribeTable'
               - 'dynamodb:DeleteTable'
