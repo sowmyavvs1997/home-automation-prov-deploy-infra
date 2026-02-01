@@ -400,6 +400,8 @@ Resources:
                 - terraform version
             post_build:
               commands:
+                - cd..;
+                - pwd;ls -ltr;
                 - echo "Running Terraform scripts"
                 - cd scripts
                 - dos2unix run.sh
