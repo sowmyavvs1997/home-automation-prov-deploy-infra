@@ -302,6 +302,12 @@ Resources:
               - 'apigateway:POST'
               - 'iam:*'
             Resource: "*"
+          - Effect: "Allow",
+            Action:
+              - 'dynamodb:DescribeTable'
+              - 'dynamodb:DeleteTable'
+              - 'dynamodb:ListTables'
+            Resource: '*'
 
   PipelineExecutionRole:
     Type: AWS::IAM::Role
