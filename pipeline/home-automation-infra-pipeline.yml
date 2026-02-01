@@ -293,6 +293,10 @@ Resources:
               - 'codebuild:StartBuild'
               - 'codebuild:BatchGetBuilds'
               - 'codebuild:UpdateProject'
+              - 'codebuild:CreateProject'
+              - 'codebuild:DeleteProject'
+              - 'codebuild:BatchGetProjects'
+              - 'codebuild:ListProjects'
               - 'ec2:*'
               - 's3:*'
               - 'apigateway:POST'
@@ -354,7 +358,7 @@ Resources:
     DependsOn: CloudFormationExecutionRole
     Type: AWS::CodeBuild::Project
     Properties:
-      Name: !Sub '${AWS::StackName}-InvokeTerraformBuild-${Environment}'
+      Name: !Sub '${AWS::StackName}-InvokeTerraformBuild'
       ServiceRole: !GetAtt [ ECSRole, Arn ]
       Artifacts: { Type: CODEPIPELINE }
       Environment:
