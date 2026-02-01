@@ -415,7 +415,7 @@ Resources:
                 Provider: Manual
                 Version: 1
               Configuration:
-                CustomData: Please approve the deployment to ${Environment} environment.
+                CustomData: !Sub "Please approve the deployment to ${Environment} environment."
               RunOrder: 1
         - Name: Pipeline
           Actions:
