@@ -139,7 +139,7 @@ Resources:
       ManagedPolicyArns:
         - !Ref ECSAccessPolicy
         - !Sub 'arn:aws:iam::${AWS::AccountId}:policy/amp-deny-policy'
-        - arn:aws:iam::aws:policy/AmazonEC2ContainerServiceFullAccess
+        - arn:aws:iam::aws:policy/AmazonECS_FullAccess
         - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryFullAccess
         - arn:aws:iam::aws:policy/AmazonS3FullAccess
         - arn:aws:iam::aws:policy/CloudWatchFullAccess
@@ -258,6 +258,7 @@ Resources:
   CloudFormationExecutionRole:
     Type: AWS::IAM::Role
     Properties:
+      Path: /
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -266,7 +267,6 @@ Resources:
               Service: cloudformation.amazonaws.com
             Action:
               - 'sts:AssumeRole'
-        Path: /
       ManagedPolicyArns:
         - !Ref CFNPipelineExecutionPolicy
         - !Sub 'arn:aws:iam::${AWS::AccountId}:policy/amp-deny-policy'
@@ -359,7 +359,7 @@ Resources:
       Artifacts: { Type: CODEPIPELINE }
       Environment:
         ComputeType: 'BUILD_GENERAL1_SMALL'
-        Image: aws/codebuild/eb-go-1.5-amazonlinux-64:2.9.1
+        Image: aws/codebuild/standard:7.0
         Type: 'LINUX_CONTAINER'
         PrivilegedMode: true
       Source:
@@ -423,7 +423,7 @@ Resources:
               ActionTypeId:
                 Category: Deploy
                 Owner: AWS
-                Provider: cloudFormation
+                Provider: CloudFormation
                 Version: 1
               Configuration:
                 ActionMode: CREATE_UPDATE
